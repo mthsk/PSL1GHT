@@ -138,32 +138,83 @@ static int resolve_path(char *path, char *result, char *pos)
     return 0;
 }
 
-// duplication here to 'realpath' intentionally
+// Resolve an LV2 path against PSL1GHT's emulated current directory.
+// LV2 sys_fs calls themselves do not understand process-relative paths, so
+// every libc wrapper that accepts a pathname must hand LV2 an absolute path.
 char* __full_path(const char *path, char *resolved_path)
 {
-    int res;
-    char cwd[PATH_MAX + 1];
-    char *path_copy;
+    char combined[PATH_MAX + 1];
+    size_t cwd_len, path_len, n, out;
+    const char *p;
 
-    if (!*path)
+    if (path == NULL || path[0] == 0 || resolved_path == NULL || __cwd == NULL)
         return NULL;
 
-    strncat(cwd, __cwd, PATH_MAX);
+    path_len = strlen(path);
+    if (path[0] == '/') {
+        if (path_len > PATH_MAX)
+            return NULL;
+        memcpy(combined, path, path_len + 1);
+    } else {
+        cwd_len = strlen(__cwd);
+        if (cwd_len + (cwd_len > 1 && __cwd[cwd_len - 1] != '/' ? 1 : 0) + path_len > PATH_MAX)
+            return NULL;
 
-    strcpy(resolved_path, "/");
-    if (resolve_path(cwd, resolved_path, resolved_path))
-        return NULL;
+        memcpy(combined, __cwd, cwd_len);
+        n = cwd_len;
+        if (n == 0 || combined[n - 1] != '/')
+            combined[n++] = '/';
+        memcpy(combined + n, path, path_len + 1);
+    }
 
-    strcat(resolved_path, "/");
-    path_copy = strdup(path);
-    if (!path_copy)
-        return NULL;
+    // Canonicalize repeated '/', '.', and '..' without touching the filesystem.
+    out = 0;
+    resolved_path[out++] = '/';
+    p = combined;
+    while (*p == '/')
+        ++p;
 
-    res = resolve_path(path_copy, resolved_path, strchr(resolved_path, 0));
-    free(path_copy);
-    if (res)
-        return NULL;
+    while (*p) {
+        const char *component = p;
+        size_t len;
 
+        while (*p && *p != '/')
+            ++p;
+        len = (size_t)(p - component);
+        while (*p == '/')
+            ++p;
+
+        if (len == 0 || (len == 1 && component[0] == '.'))
+            continue;
+
+        if (len == 2 && component[0] == '.' && component[1] == '.') {
+            if (out > 1) {
+                if (resolved_path[out - 1] == '/')
+                    --out;
+                while (out > 1 && resolved_path[out - 1] != '/')
+                    --out;
+            }
+            resolved_path[out] = 0;
+            continue;
+        }
+
+        if (out > 1 && resolved_path[out - 1] != '/') {
+            if (out >= PATH_MAX)
+                return NULL;
+            resolved_path[out++] = '/';
+        }
+        if (out + len > PATH_MAX)
+            return NULL;
+        memcpy(resolved_path + out, component, len);
+        out += len;
+        resolved_path[out] = 0;
+    }
+
+    if (out == 0) {
+        resolved_path[0] = '/';
+        out = 1;
+    }
+    resolved_path[out] = 0;
     return resolved_path;
 }
 
