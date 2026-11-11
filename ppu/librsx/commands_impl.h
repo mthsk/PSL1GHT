@@ -826,11 +826,10 @@ void RSX_FUNC(SetVertexProgramConstants)(gcmContextData *context,u32 start,u32 c
 		RSX_CONTEXT_CURRENTP[1] = start + (loop<<3);
 		RSX_CONTEXT_CURRENTP += 2;
 
-		for(i=0;i < rest;i++) {
-			RSX_CONTEXT_CURRENTP[0] = *value;
-			RSX_CONTEXT_CURRENTP++;
-			value++;
-		}
+		/* Preserve the IEEE-754 payload bits.  Assigning f32 directly to the
+		 * u32 command buffer performs a numeric conversion instead. */
+		RSX_MEMCPY(RSX_CONTEXT_CURRENTP,value,sizeof(f32)*rest);
+		RSX_CONTEXT_CURRENTP += rest;
 	}
 
 	RSX_CONTEXT_CURRENT_END(reserve);
