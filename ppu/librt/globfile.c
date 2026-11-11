@@ -223,16 +223,29 @@ _DEFUN(__librt_chdir_r, (r,dirname),
        struct _reent *r _AND
        const char *dirname)
 {
-    char *dir = flattenDirectory(dirname, "/");
-    s32 fd, res = sysLv2FsOpenDir(dir, &fd);
-    if (res == 0) {
-        __cwd = dir;
-        sysLv2FsCloseDir(fd);
-        return 0;
+    char resolved[PATH_MAX + 1];
+    char *dir;
+    s32 fd, res;
+
+    if (!__full_path(dirname, resolved)) {
+        r->_errno = ENOENT;
+        return -1;
     }
 
-    free(dir);
-    return lv2errno_r(r, res);
+    res = sysLv2FsOpenDir(resolved, &fd);
+    if (res != 0)
+        return lv2errno_r(r, res);
+
+    sysLv2FsCloseDir(fd);
+    dir = strdup(resolved);
+    if (!dir) {
+        r->_errno = ENOMEM;
+        return -1;
+    }
+
+    free(__cwd);
+    __cwd = dir;
+    return 0;
 }
 
 char*
