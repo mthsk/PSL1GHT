@@ -5,6 +5,7 @@
 #include <sys/reent.h>
 #include <sys/errno.h>
 #include <sys/types.h>
+#include <sys/syslimits.h>
 #include <sys/lv2errno.h>
 
 #include <sys/file.h>
@@ -12,6 +13,7 @@
 #define UMASK(mode)		((mode)&~g_umask)
 
 extern mode_t g_umask;
+extern char* __full_path(const char *path, char *resolved_path);
 
 int
 _DEFUN(__librt_open_r,(r,file,flags,mode),
@@ -21,6 +23,9 @@ _DEFUN(__librt_open_r,(r,file,flags,mode),
 		   int mode)
 {
 	int fd = -1;
+	char resolved[PATH_MAX + 1];
+	const char *lv2file = __full_path(file, resolved);
+	if(!lv2file) { r->_errno = ENOENT; return -1; }
 
 	int oflag = flags&(O_ACCMODE|SYS_O_MSELF);
 	if(flags&O_CREAT)
@@ -37,11 +42,11 @@ _DEFUN(__librt_open_r,(r,file,flags,mode),
 	else
 		mode = 0;
 
-	int ret = sysLv2FsOpen(file,oflag,&fd,mode,NULL,0);
+	int ret = sysLv2FsOpen(lv2file,oflag,&fd,mode,NULL,0);
 	if(ret) return lv2errno_r(r,ret);
 
 	if(flags&O_CREAT)
-		sysLv2FsChmod(file,mode);
+		sysLv2FsChmod(lv2file,mode);
 
 	return fd;
 }

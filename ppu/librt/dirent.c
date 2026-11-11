@@ -5,10 +5,13 @@
 #include <sys/reent.h>
 #include <sys/errno.h>
 #include <sys/types.h>
+#include <sys/syslimits.h>
 #include <sys/dirent.h>
 #include <sys/lv2errno.h>
 
 #include <sys/file.h>
+
+extern char* __full_path(const char *path, char *resolved_path);
 
 static void convertLv2Dirent(struct dirent *result,sysFSDirent *source,DIR *dirp)
 {
@@ -44,8 +47,17 @@ _DEFUN(__librt_opendir_r,(r,path),
 	   const char *path)
 {
 	s32 fd,ret;
+	char resolved[PATH_MAX + 1];
+	const char *lv2path = __full_path(path, resolved);
 	DIR *dirp = (DIR*)malloc(sizeof(DIR));
 	struct dirent *buffer = (struct dirent*)malloc(sizeof(struct dirent));
+
+	if(!lv2path) {
+		free(dirp);
+		free(buffer);
+		r->_errno = ENOENT;
+		return NULL;
+	}
 
 	if(!dirp || !buffer) {
 		free(dirp);
@@ -60,7 +72,7 @@ _DEFUN(__librt_opendir_r,(r,path),
 	dirp->dd_buf = buffer;
 	dirp->dd_len = sizeof(struct dirent);
 
-	ret = sysLv2FsOpenDir(path,&fd);
+	ret = sysLv2FsOpenDir(lv2path,&fd);
 	if(!ret) {
 		dirp->dd_fd = fd;
 		return dirp;
