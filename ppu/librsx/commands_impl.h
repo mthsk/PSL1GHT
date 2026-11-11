@@ -801,7 +801,7 @@ void RSX_FUNC(SetVertexProgramParameter)(gcmContextData *context,const rsxVertex
 
 void RSX_FUNC(SetVertexProgramConstants)(gcmContextData *context,u32 start,u32 count,const f32 *data)
 {
-	u32 i;
+	u32 i, curr = 0;
 	u32 loop = count>>5;
 	u32 rest = count&0x1f;
 	const f32* __restrict value = data;
@@ -812,24 +812,23 @@ void RSX_FUNC(SetVertexProgramConstants)(gcmContextData *context,u32 start,u32 c
 	for(i=0;i < loop;i++) {
 		u32 loadAt = start + i*8;
 
-		RSX_CONTEXT_CURRENTP[0] = RSX_METHOD(NV40TCL_VP_UPLOAD_CONST_ID,33);
-		RSX_CONTEXT_CURRENTP[1] = loadAt;
+		RSX_CONTEXT_CURRENTP[curr+0] = RSX_METHOD(NV40TCL_VP_UPLOAD_CONST_ID,33);
+		RSX_CONTEXT_CURRENTP[curr+1] = loadAt;
 
-		RSX_MEMCPY(&RSX_CONTEXT_CURRENTP[2],value,sizeof(f32)*16);
-		RSX_MEMCPY(&RSX_CONTEXT_CURRENTP[18],&value[16],sizeof(f32)*16);
-		RSX_CONTEXT_CURRENTP += 34;
+		RSX_MEMCPY(&RSX_CONTEXT_CURRENTP[curr+2],value,sizeof(f32)*16);
+		RSX_MEMCPY(&RSX_CONTEXT_CURRENTP[curr+18],&value[16],sizeof(f32)*16);
+		curr += 34;
 		value += 32;
 	}
 
 	if (rest) {
-		RSX_CONTEXT_CURRENTP[0] = RSX_METHOD(NV40TCL_VP_UPLOAD_CONST_ID,rest + 1);
-		RSX_CONTEXT_CURRENTP[1] = start + (loop<<3);
-		RSX_CONTEXT_CURRENTP += 2;
+		RSX_CONTEXT_CURRENTP[curr++] = RSX_METHOD(NV40TCL_VP_UPLOAD_CONST_ID,rest + 1);
+		RSX_CONTEXT_CURRENTP[curr++] = start + (loop<<3);
 
 		/* Preserve the IEEE-754 payload bits.  Assigning f32 directly to the
 		 * u32 command buffer performs a numeric conversion instead. */
-		RSX_MEMCPY(RSX_CONTEXT_CURRENTP,value,sizeof(f32)*rest);
-		RSX_CONTEXT_CURRENTP += rest;
+		RSX_MEMCPY(&RSX_CONTEXT_CURRENTP[curr],value,sizeof(f32)*rest);
+		curr += rest;
 	}
 
 	RSX_CONTEXT_CURRENT_END(reserve);
