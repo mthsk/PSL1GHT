@@ -48,6 +48,7 @@ static char* flattenDirectory(const char *dirname, const char *root)
     int len, last_pos;
     int was_real_dir;
     char fpath[PATH_MAX + 1];
+    fpath[0] = 0;
 
     if (dirname == NULL)
         return NULL;
